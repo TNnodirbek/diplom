@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from django.contrib import messages
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -9,27 +11,258 @@ from accounts.models import Client
 from animals.models import Animal
 from dashboard.models import ActionLog, DoctorProfile
 from requests_app.models import DangerReport, ServiceRequest
-
+# =========================
+# ROLE / ACCESS CONTROL
+# =========================
 
 # =========================
 # ROLE / ACCESS CONTROL
 # =========================
 
-def is_administrator(user):
+ADMIN_GROUP_NAMES = [
+    "Administrator",
+    "Administrator_panel",
+    "Admistrator_panel",
+]
+
+VETERINAR_GROUP_NAMES = [
+    "Veterinar",
+    "veterenar_panel",
+    "veterinar_panel",
+]
+
+
+def user_in_groups(user, group_names):
+    if not user.is_authenticated:
+        return False
+
+    return user.groups.filter(name__in=group_names).exists()
+
+
+def is_admin_user(user):
     """
-    Dashboardga faqat:
-    1) Superuser
-    2) Administrator guruhidagi user kira oladi.
+    Administrator dashboard:
+    - superuser
+    - Administrator / Administrator_panel / Admistrator_panel guruhidagi user
     """
+
     return user.is_authenticated and (
-        user.is_superuser or user.groups.filter(name="Administrator").exists()
+        user.is_superuser or user_in_groups(user, ADMIN_GROUP_NAMES)
     )
 
 
-dashboard_required = user_passes_test(
-    is_administrator,
-    login_url="/admin/login/",
+def is_veterinar_user(user):
+    """
+    Veterinar dashboard:
+    - superuser
+    - Veterinar / veterenar_panel / veterinar_panel guruhidagi user
+    - DoctorProfile.user orqali bog‘langan user
+    """
+
+    return user.is_authenticated and (
+        user.is_superuser
+        or user_in_groups(user, VETERINAR_GROUP_NAMES)
+        or DoctorProfile.objects.filter(user=user, is_active=True).exists()
+    )
+
+
+admin_required = user_passes_test(
+    is_admin_user,
+    login_url="/dashboard/login/",
+    redirect_field_name=None,
 )
+
+doctor_required = user_passes_test(
+    is_veterinar_user,
+    login_url="/dashboard/login/",
+    redirect_field_name=None,
+)
+
+
+# =========================
+# AUTH
+# =========================
+
+def can_open_next_url(user, next_url):
+    """
+    Login qilingandan keyin user next_url ga kira oladimi — shuni tekshiradi.
+    """
+
+    if not next_url:
+        return False
+
+    if next_url.startswith("/admin/"):
+        return user.is_superuser
+
+    if next_url.startswith("/dashboard/doctor/"):
+        return is_veterinar_user(user)
+
+    if next_url.startswith("/dashboard/"):
+        return is_admin_user(user)
+
+    return False
+
+
+def get_user_default_redirect(user):
+    """
+    Agar next_url bo‘lmasa, userni roliga qarab default sahifaga yuboradi.
+
+    nodirbek / superuser      -> /admin/
+    Administrator_panel user  -> /dashboard/
+    veterenar_panel user      -> /dashboard/doctor/
+    """
+
+    if user.is_superuser:
+        return "/admin/"
+
+    if is_admin_user(user):
+        return "/dashboard/"
+
+    if is_veterinar_user(user):
+        return "/dashboard/doctor/"
+
+    return None
+
+
+def unified_login(request):
+    """
+    Bitta umumiy login sahifa:
+    - /admin/login/
+    - /dashboard/login/
+
+    Ikkalasi ham shu view orqali ishlaydi.
+    """
+
+    next_url = request.POST.get("next") or request.GET.get("next", "")
+
+    if request.user.is_authenticated:
+        if can_open_next_url(request.user, next_url):
+            return redirect(next_url)
+
+        redirect_url = get_user_default_redirect(request.user)
+
+        if redirect_url:
+            return redirect(redirect_url)
+
+        auth_logout(request)
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "").strip()
+
+        user = authenticate(
+            request,
+            username=username,
+            password=password,
+        )
+
+        if user is None:
+            messages.error(request, "Login yoki parol noto‘g‘ri kiritildi.")
+
+        elif not user.is_active:
+            messages.error(request, "Ushbu foydalanuvchi faol emas.")
+
+        else:
+            auth_login(request, user)
+
+            if can_open_next_url(user, next_url):
+                return redirect(next_url)
+
+            redirect_url = get_user_default_redirect(user)
+
+            if redirect_url:
+                return redirect(redirect_url)
+
+            auth_logout(request)
+            messages.error(
+                request,
+                "Bu foydalanuvchiga dashboard roli biriktirilmagan."
+            )
+
+    context = {
+        "next": next_url,
+    }
+
+    return render(request, "dashboard/login.html", context)
+
+
+def unified_logout(request):
+    """
+    /admin/logout/ ham, /dashboard/logout/ ham shu yerga keladi.
+    """
+
+    auth_logout(request)
+    return redirect("/dashboard/login/")
+
+
+# Eski nomlar buzilib qolmasligi uchun alias qoldiramiz.
+dashboard_login = unified_login
+dashboard_logout = unified_logout
+
+
+# =========================
+# AUTH
+# =========================
+
+def dashboard_login(request):
+    """
+    Bitta umumiy login:
+    - superuser bo‘lsa Django superadmin panelga kiradi
+    - administrator group bo‘lsa administrator dashboardga kiradi
+    - veterinar group yoki DoctorProfile bo‘lsa doctor dashboardga kiradi
+    """
+
+    if request.user.is_authenticated:
+        if request.user.is_superuser:
+            return redirect("admin:index")
+
+        if is_admin_user(request.user):
+            return redirect("dashboard:home")
+
+        if is_veterinar_user(request.user):
+            return redirect("dashboard:doctor_home")
+
+        auth_logout(request)
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "").strip()
+
+        user = authenticate(
+            request,
+            username=username,
+            password=password,
+        )
+
+        if user is None:
+            messages.error(request, "Login yoki parol noto‘g‘ri kiritildi.")
+
+        elif not user.is_active:
+            messages.error(request, "Ushbu foydalanuvchi faol emas.")
+
+        else:
+            auth_login(request, user)
+
+            if user.is_superuser:
+                return redirect("admin:index")
+
+            if is_admin_user(user):
+                return redirect("dashboard:home")
+
+            if is_veterinar_user(user):
+                return redirect("dashboard:doctor_home")
+
+            auth_logout(request)
+            messages.error(
+                request,
+                "Bu foydalanuvchiga dashboard roli biriktirilmagan."
+            )
+
+    return render(request, "dashboard/login.html")
+
+def dashboard_logout(request):
+    auth_logout(request)
+    return redirect("dashboard:login")
 
 
 # =========================
@@ -83,6 +316,12 @@ def get_query(request):
 
 def get_active_doctors():
     return DoctorProfile.objects.filter(is_active=True).order_by("full_name")
+
+
+def get_current_doctor(user):
+    if user.is_superuser:
+        return None
+    return DoctorProfile.objects.filter(user=user, is_active=True).first()
 
 
 def filter_service_queryset(queryset, query):
@@ -147,15 +386,14 @@ def write_status_log(
 def redirect_service_page(service_request):
     if service_request.service_type == ServiceRequest.SERVICE_TYPE_CLINIC:
         return redirect("dashboard:clinic_requests")
-
     return redirect("dashboard:vet_call_requests")
 
 
 # =========================
-# DASHBOARD HOME
+# ADMIN DASHBOARD HOME
 # =========================
 
-@dashboard_required
+@admin_required
 def dashboard_home(request):
     query = get_query(request)
     today_start, today_end = get_today_range()
@@ -186,6 +424,7 @@ def dashboard_home(request):
     context = {
         "active_page": "home",
         "query": query,
+        "panel_type": "admin",
 
         "total_clinic": ServiceRequest.objects.filter(service_type="clinic").count(),
         "total_vet_call": ServiceRequest.objects.filter(service_type="vet_call").count(),
@@ -198,20 +437,6 @@ def dashboard_home(request):
         "today_clinic": today_service_requests.filter(service_type="clinic").count(),
         "today_vet_call": today_service_requests.filter(service_type="vet_call").count(),
         "today_danger": today_danger_reports.count(),
-
-        "service_new": get_service_status_count("new"),
-        "service_accepted": get_service_status_count("accepted"),
-        "service_assigned": get_service_status_count("assigned"),
-        "service_in_progress": get_service_status_count("in_progress"),
-        "service_completed": get_service_status_count("completed"),
-        "service_cancelled": get_service_status_count("cancelled"),
-
-        "danger_new": get_danger_status_count("new"),
-        "danger_reviewed": get_danger_status_count("reviewed"),
-        "danger_assigned": get_danger_status_count("assigned"),
-        "danger_in_progress": get_danger_status_count("in_progress"),
-        "danger_completed": get_danger_status_count("completed"),
-        "danger_rejected": get_danger_status_count("rejected"),
 
         "recent_service_requests": service_requests.order_by("-created_at")[:8],
         "recent_danger_reports": danger_reports.order_by("-created_at")[:5],
@@ -226,7 +451,7 @@ def dashboard_home(request):
 # QUICK REQUEST
 # =========================
 
-@dashboard_required
+@admin_required
 def quick_request(request):
     if request.method == "POST":
         full_name = request.POST.get("full_name", "").strip()
@@ -292,6 +517,8 @@ def quick_request(request):
 
     context = {
         "active_page": "quick_request",
+        "query": get_query(request),
+        "panel_type": "admin",
         "animal_type_labels": ANIMAL_TYPE_LABELS,
     }
 
@@ -299,10 +526,10 @@ def quick_request(request):
 
 
 # =========================
-# CLINIC REQUESTS
+# ADMIN REQUEST PAGES
 # =========================
 
-@dashboard_required
+@admin_required
 def clinic_requests(request):
     query = get_query(request)
 
@@ -318,6 +545,7 @@ def clinic_requests(request):
     context = {
         "active_page": "clinic",
         "query": query,
+        "panel_type": "admin",
         "title": "Klinikada davolash arizalari",
         "requests": requests_qs,
         "status_labels": SERVICE_STATUS_LABELS,
@@ -327,11 +555,7 @@ def clinic_requests(request):
     return render(request, "dashboard/service_requests.html", context)
 
 
-# =========================
-# VET CALL REQUESTS
-# =========================
-
-@dashboard_required
+@admin_required
 def vet_call_requests(request):
     query = get_query(request)
 
@@ -347,6 +571,7 @@ def vet_call_requests(request):
     context = {
         "active_page": "vet_call",
         "query": query,
+        "panel_type": "admin",
         "title": "Veterinar chaqirish arizalari",
         "requests": requests_qs,
         "status_labels": SERVICE_STATUS_LABELS,
@@ -356,11 +581,7 @@ def vet_call_requests(request):
     return render(request, "dashboard/service_requests.html", context)
 
 
-# =========================
-# DANGER REPORTS
-# =========================
-
-@dashboard_required
+@admin_required
 def danger_reports(request):
     query = get_query(request)
 
@@ -375,6 +596,7 @@ def danger_reports(request):
     context = {
         "active_page": "danger",
         "query": query,
+        "panel_type": "admin",
         "reports": reports,
         "status_labels": DANGER_STATUS_LABELS,
         "doctors": get_active_doctors(),
@@ -384,10 +606,10 @@ def danger_reports(request):
 
 
 # =========================
-# UPDATE SERVICE STATUS / ASSIGN DOCTOR
+# ADMIN UPDATE SERVICE
 # =========================
 
-@dashboard_required
+@admin_required
 def update_service_status(request, request_id):
     service_request = get_object_or_404(
         ServiceRequest.objects.select_related("assigned_doctor"),
@@ -478,11 +700,7 @@ def update_service_status(request, request_id):
     return redirect_service_page(service_request)
 
 
-# =========================
-# UPDATE DANGER STATUS / ASSIGN RESPONSIBLE
-# =========================
-
-@dashboard_required
+@admin_required
 def update_danger_status(request, report_id):
     report = get_object_or_404(
         DangerReport.objects.select_related("assigned_doctor"),
@@ -574,10 +792,10 @@ def update_danger_status(request, report_id):
 
 
 # =========================
-# HISTORY
+# HISTORY / SETTINGS
 # =========================
 
-@dashboard_required
+@admin_required
 def history(request):
     query = get_query(request)
     selected_date = request.GET.get("date", "").strip()
@@ -673,6 +891,7 @@ def history(request):
     context = {
         "active_page": "history",
         "query": query,
+        "panel_type": "admin",
         "history_items": history_items,
         "action_logs": action_logs,
         "selected_date": selected_date,
@@ -684,17 +903,180 @@ def history(request):
     return render(request, "dashboard/history.html", context)
 
 
-# =========================
-# SETTINGS
-# =========================
-
-@dashboard_required
+@admin_required
 def settings_page(request):
     doctors = DoctorProfile.objects.all().order_by("full_name")
 
     context = {
         "active_page": "settings",
+        "query": get_query(request),
+        "panel_type": "admin",
         "doctors": doctors,
     }
 
     return render(request, "dashboard/settings.html", context)
+
+
+# =========================
+# VETERINAR DASHBOARD
+# =========================
+
+@doctor_required
+def doctor_dashboard(request):
+    query = get_query(request)
+    doctor = get_current_doctor(request.user)
+
+    service_requests = (
+        ServiceRequest.objects
+        .select_related("client", "animal", "assigned_doctor")
+        .filter(assigned_doctor=doctor)
+        .exclude(status__in=[
+            ServiceRequest.STATUS_COMPLETED,
+            ServiceRequest.STATUS_CANCELLED,
+        ])
+        .order_by("-created_at")
+    )
+
+    danger_reports_qs = (
+        DangerReport.objects
+        .select_related("client", "assigned_doctor")
+        .filter(assigned_doctor=doctor)
+        .exclude(status__in=[
+            DangerReport.STATUS_COMPLETED,
+            DangerReport.STATUS_REJECTED,
+        ])
+        .order_by("-created_at")
+    )
+
+    # superuser doctor dashboardni ko‘rsa barcha aktiv arizalar chiqadi
+    if request.user.is_superuser and doctor is None:
+        service_requests = (
+            ServiceRequest.objects
+            .select_related("client", "animal", "assigned_doctor")
+            .exclude(status__in=[
+                ServiceRequest.STATUS_COMPLETED,
+                ServiceRequest.STATUS_CANCELLED,
+            ])
+            .order_by("-created_at")
+        )
+
+        danger_reports_qs = (
+            DangerReport.objects
+            .select_related("client", "assigned_doctor")
+            .exclude(status__in=[
+                DangerReport.STATUS_COMPLETED,
+                DangerReport.STATUS_REJECTED,
+            ])
+            .order_by("-created_at")
+        )
+
+    if query:
+        service_requests = filter_service_queryset(service_requests, query)
+        danger_reports_qs = filter_danger_queryset(danger_reports_qs, query)
+
+    context = {
+        "active_page": "doctor_home",
+        "query": query,
+        "panel_type": "doctor",
+        "doctor": doctor,
+        "service_requests": service_requests,
+        "danger_reports": danger_reports_qs,
+        "service_status_labels": SERVICE_STATUS_LABELS,
+        "danger_status_labels": DANGER_STATUS_LABELS,
+    }
+
+    return render(request, "dashboard/doctor_dashboard.html", context)
+
+
+@doctor_required
+def doctor_update_service_status(request, request_id):
+    doctor = get_current_doctor(request.user)
+
+    service_request = get_object_or_404(
+        ServiceRequest.objects.select_related("assigned_doctor"),
+        id=request_id,
+    )
+
+    if not request.user.is_superuser and service_request.assigned_doctor != doctor:
+        messages.error(request, "Bu ariza sizga biriktirilmagan.")
+        return redirect("dashboard:doctor_home")
+
+    if request.method != "POST":
+        return redirect("dashboard:doctor_home")
+
+    action = request.POST.get("action", "").strip()
+    comment = request.POST.get("doctor_comment", "").strip()
+    old_status = service_request.status
+
+    if action == "start":
+        service_request.status = ServiceRequest.STATUS_IN_PROGRESS
+        if comment:
+            service_request.admin_comment = comment
+        service_request.save(update_fields=["status", "admin_comment", "updated_at"])
+
+        if service_request.assigned_doctor:
+            service_request.assigned_doctor.refresh_status()
+
+        write_status_log(
+            user=request.user,
+            service_request=service_request,
+            doctor=service_request.assigned_doctor,
+            old_status=old_status,
+            new_status=service_request.status,
+            description=comment or "Veterinar arizani jarayonga oldi.",
+        )
+
+    elif action == "complete":
+        service_request.complete_request(
+            user=request.user,
+            description=comment or "Veterinar arizani yakunladi.",
+        )
+
+    return redirect("dashboard:doctor_home")
+
+
+@doctor_required
+def doctor_update_danger_status(request, report_id):
+    doctor = get_current_doctor(request.user)
+
+    report = get_object_or_404(
+        DangerReport.objects.select_related("assigned_doctor"),
+        id=report_id,
+    )
+
+    if not request.user.is_superuser and report.assigned_doctor != doctor:
+        messages.error(request, "Bu xavfli holat sizga biriktirilmagan.")
+        return redirect("dashboard:doctor_home")
+
+    if request.method != "POST":
+        return redirect("dashboard:doctor_home")
+
+    action = request.POST.get("action", "").strip()
+    comment = request.POST.get("doctor_comment", "").strip()
+    old_status = report.status
+
+    if action == "start":
+        report.status = DangerReport.STATUS_IN_PROGRESS
+        if comment:
+            report.admin_comment = comment
+        report.save(update_fields=["status", "admin_comment", "updated_at"])
+
+        if report.assigned_doctor:
+            report.assigned_doctor.refresh_status()
+
+        write_status_log(
+            user=request.user,
+            danger_report=report,
+            doctor=report.assigned_doctor,
+            old_status=old_status,
+            new_status=report.status,
+            description=comment or "Mas’ul xavfli holatni jarayonga oldi.",
+        )
+
+    elif action == "complete":
+        report.complete_report(
+            user=request.user,
+            description=comment or "Mas’ul xavfli holatni yakunladi.",
+        )
+
+    return redirect("dashboard:doctor_home")

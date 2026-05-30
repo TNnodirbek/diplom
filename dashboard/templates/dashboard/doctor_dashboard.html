@@ -1,0 +1,222 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static i18n %}
+
+{% block title %}
+    {% trans "Veterinar dashboard" %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1>{% trans "Veterinar dashboard" %}</h1>
+        <p>
+            {% if doctor %}
+                {{ doctor.full_name }} — {% trans "sizga biriktirilgan arizalar" %}
+            {% else %}
+                {% trans "Superadmin ko‘rish rejimi: barcha aktiv arizalar" %}
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <span>🩺</span>
+        <p>{% trans "Xizmat arizalari" %}</p>
+        <h2>{{ service_requests.count }}</h2>
+        <small>{% trans "Aktiv arizalar" %}</small>
+    </div>
+
+    <div class="stat-card danger-card">
+        <span>⚠️</span>
+        <p>{% trans "Xavfli holatlar" %}</p>
+        <h2>{{ danger_reports.count }}</h2>
+        <small>{% trans "Aktiv xabarlar" %}</small>
+    </div>
+</div>
+
+<div class="dashboard-section">
+    <div class="section-header">
+        <div>
+            <h1>{% trans "Mening xizmat arizalarim" %}</h1>
+            <p>{% trans "Jarayonga olish, izoh yozish va yakunlash." %}</p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="dashboard-table">
+            <thead>
+                <tr>
+                    <th>{% trans "ID" %}</th>
+                    <th>{% trans "Mijoz" %}</th>
+                    <th>{% trans "Hayvon" %}</th>
+                    <th>{% trans "Xizmat" %}</th>
+                    <th>{% trans "Manzil" %}</th>
+                    <th>{% trans "Status" %}</th>
+                    <th>{% trans "Amal" %}</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in service_requests %}
+                    <tr>
+                        <td>#{{ item.id }}</td>
+
+                        <td>
+                            <strong>{{ item.client.full_name }}</strong><br>
+                            <small>{{ item.client.phone }}</small>
+                        </td>
+
+                        <td>
+                            {{ item.animal.get_animal_type_display }}<br>
+                            <small>{{ item.animal.name|default:"Nomsiz" }}</small>
+                        </td>
+
+                        <td>{{ item.get_service_type_display }}</td>
+
+                        <td>
+                            {{ item.address|default:"Manzil yo‘q" }}
+
+                            {% if item.latitude and item.longitude %}
+                                <br>
+                                <a href="https://maps.google.com/?q={{ item.latitude }},{{ item.longitude }}" target="_blank">
+                                    📍 {% trans "Xaritada ko‘rish" %}
+                                </a>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <span class="status status-{{ item.status }}">
+                                {{ item.get_status_display }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <form method="post" action="{% url 'dashboard:doctor_update_service_status' item.id %}" class="inline-form">
+                                {% csrf_token %}
+
+                                <input
+                                    type="text"
+                                    name="doctor_comment"
+                                    placeholder="{% trans 'Izoh yozish' %}"
+                                >
+
+                                {% if item.status != "in_progress" %}
+                                    <button type="submit" name="action" value="start">
+                                        {% trans "Jarayonda" %}
+                                    </button>
+                                {% endif %}
+
+                                <button type="submit" name="action" value="complete">
+                                    {% trans "Yakunlash" %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">
+                            {% trans "Sizga biriktirilgan aktiv xizmat arizalari yo‘q." %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<br>
+
+<div class="dashboard-section">
+    <div class="section-header">
+        <div>
+            <h1>{% trans "Mening xavfli holatlarim" %}</h1>
+            <p>{% trans "Mas’ul sifatida biriktirilgan xavfli xabarlar." %}</p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="dashboard-table">
+            <thead>
+                <tr>
+                    <th>{% trans "ID" %}</th>
+                    <th>{% trans "Xavf turi" %}</th>
+                    <th>{% trans "Mijoz" %}</th>
+                    <th>{% trans "Manzil" %}</th>
+                    <th>{% trans "Status" %}</th>
+                    <th>{% trans "Amal" %}</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in danger_reports %}
+                    <tr>
+                        <td>#{{ item.id }}</td>
+
+                        <td>
+                            <strong>{{ item.get_danger_type_display }}</strong>
+                        </td>
+
+                        <td>
+                            {% if item.client %}
+                                <strong>{{ item.client.full_name|default:"Noma’lum" }}</strong><br>
+                                <small>{{ item.client.phone }}</small>
+                            {% else %}
+                                <strong>{% trans "Noma’lum" %}</strong><br>
+                                <small>{{ item.phone|default:"Telefon yo‘q" }}</small>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ item.address|default:"Manzil yo‘q" }}
+
+                            {% if item.latitude and item.longitude %}
+                                <br>
+                                <a href="https://maps.google.com/?q={{ item.latitude }},{{ item.longitude }}" target="_blank">
+                                    📍 {% trans "Xaritada ko‘rish" %}
+                                </a>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <span class="status status-{{ item.status }}">
+                                {{ item.get_status_display }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <form method="post" action="{% url 'dashboard:doctor_update_danger_status' item.id %}" class="inline-form">
+                                {% csrf_token %}
+
+                                <input
+                                    type="text"
+                                    name="doctor_comment"
+                                    placeholder="{% trans 'Izoh yozish' %}"
+                                >
+
+                                {% if item.status != "in_progress" %}
+                                    <button type="submit" name="action" value="start">
+                                        {% trans "Jarayonda" %}
+                                    </button>
+                                {% endif %}
+
+                                <button type="submit" name="action" value="complete">
+                                    {% trans "Yakunlash" %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6">
+                            {% trans "Sizga biriktirilgan aktiv xavfli holatlar yo‘q." %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

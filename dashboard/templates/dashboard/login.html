@@ -1,0 +1,151 @@
+{% load static i18n %}
+{% get_current_language as LANGUAGE_CODE %}
+
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'uz' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% trans "Tizimga kirish" %} | VetClinic</title>
+
+    <link rel="stylesheet" href="{% static 'dashboard/css/auth.css' %}">
+</head>
+<body>
+
+<div class="auth-page">
+
+    <div class="auth-language">
+        <form action="{% url 'set_language' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="language" value="uz">
+            <button type="submit" class="{% if LANGUAGE_CODE == 'uz' %}active{% endif %}">
+                UZ
+            </button>
+        </form>
+
+        <form action="{% url 'set_language' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="language" value="ru">
+            <button type="submit" class="{% if LANGUAGE_CODE == 'ru' %}active{% endif %}">
+                RU
+            </button>
+        </form>
+
+        <form action="{% url 'set_language' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="language" value="en">
+            <button type="submit" class="{% if LANGUAGE_CODE == 'en' %}active{% endif %}">
+                EN
+            </button>
+        </form>
+    </div>
+
+    <main class="auth-card">
+
+        <div class="auth-brand">
+            <div class="auth-logo">🐾</div>
+
+            <div>
+                <h1>VetClinic</h1>
+                <p>{% trans "Veterinariya boshqaruv tizimi" %}</p>
+            </div>
+        </div>
+
+        <div class="auth-title">
+            <h2>{% trans "Tizimga kirish" %}</h2>
+            <p>
+                {% trans "Superadmin, administrator yoki veterinar sifatida kirish uchun login va parolingizni kiriting." %}
+            </p>
+        </div>
+
+        {% if messages %}
+            <div class="auth-messages">
+                {% for message in messages %}
+                    <div class="auth-alert auth-alert-{{ message.tags }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if form.errors %}
+            <div class="auth-messages">
+                <div class="auth-alert auth-alert-error">
+                    {% trans "Login yoki parol noto‘g‘ri kiritildi." %}
+                </div>
+            </div>
+        {% endif %}
+
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+
+            {% if next %}
+                <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
+
+            <div class="form-group">
+                <label for="username">{% trans "Login" %}</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="{% trans 'Username kiriting' %}"
+                    autocomplete="username"
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">{% trans "Parol" %}</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="{% trans 'Parol kiriting' %}"
+                    autocomplete="current-password"
+                    required
+                >
+            </div>
+
+            <button type="submit" class="auth-submit">
+                {% trans "Kirish" %}
+            </button>
+        </form>
+
+        <div class="auth-info">
+            <div class="auth-info-item">
+                <strong>{% trans "Superadmin" %}</strong>
+                <span>{% trans "Django admin panelga yo‘naltiriladi" %}</span>
+            </div>
+
+            <div class="auth-info-item">
+                <strong>{% trans "Administrator" %}</strong>
+                <span>{% trans "Administrator dashboardga kiradi" %}</span>
+            </div>
+
+            <div class="auth-info-item">
+                <strong>{% trans "Veterinar" %}</strong>
+                <span>{% trans "Veterinar dashboardga kiradi" %}</span>
+            </div>
+        </div>
+
+        <div class="auth-footer">
+            <a href="{% url 'website:home' %}">
+                ← {% trans "Saytga qaytish" %}
+            </a>
+
+            <span>
+                {% trans "Bitta login — uchta rol" %}
+            </span>
+        </div>
+
+    </main>
+
+</div>
+
+</body>
+</html>
