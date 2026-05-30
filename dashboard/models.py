@@ -88,7 +88,6 @@ class DoctorProfile(models.Model):
     def refresh_status(self):
         """
         Veterinar statusini unga biriktirilgan faol arizalarga qarab avtomatik yangilaydi.
-        Bu metod status chalkashib ketmasligi uchun ishlatiladi.
         """
 
         if not self.is_active:
