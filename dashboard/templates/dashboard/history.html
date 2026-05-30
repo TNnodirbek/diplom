@@ -1,0 +1,217 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static i18n %}
+
+{% block title %}
+    {% trans "Harakatlar tarixi" %}
+{% endblock %}
+
+{% block content %}
+<section class="dashboard-section">
+    <div class="section-header">
+        <div>
+            <h1>{% trans "Harakatlar tarixi" %}</h1>
+            <p>{% trans "Bugungi, tanlangan sana, oy, yil yoki barcha jarayonlarni ko‘rish." %}</p>
+        </div>
+    </div>
+
+    <form method="get" class="filter-form">
+        <input
+            type="text"
+            name="q"
+            value="{{ query }}"
+            placeholder="{% trans 'Qidirish: ism, telefon, hayvon' %}"
+        >
+
+        <label>
+            {% trans "Kun:" %}
+            <input
+                type="date"
+                name="date"
+                value="{{ selected_date }}"
+            >
+        </label>
+
+        <label>
+            {% trans "Oy:" %}
+            <input
+                type="month"
+                name="month"
+                value="{{ selected_month }}"
+            >
+        </label>
+
+        <label>
+            {% trans "Yil:" %}
+            <input
+                type="number"
+                name="year"
+                value="{{ selected_year }}"
+                placeholder="2026"
+            >
+        </label>
+
+        <button type="submit">
+            {% trans "Filtrlash" %}
+        </button>
+
+        <a href="{% url 'dashboard:history' %}?all=1">
+            {% trans "Hammasi" %}
+        </a>
+    </form>
+
+    <div class="table-wrapper">
+        <table class="dashboard-table">
+            <thead>
+                <tr>
+                    <th>{% trans "Turi" %}</th>
+                    <th>{% trans "Mijoz" %}</th>
+                    <th>{% trans "Hayvon" %}</th>
+                    <th>{% trans "Manzil" %}</th>
+                    <th>{% trans "Veterinar/Mas’ul" %}</th>
+                    <th>{% trans "Status" %}</th>
+                    <th>{% trans "Vaqt" %}</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in history_items %}
+                    <tr>
+                        <td>
+                            <strong>{{ item.type }}</strong>
+                        </td>
+
+                        <td>
+                            {% if item.client %}
+                                <strong>{{ item.client.full_name|default:"Noma’lum" }}</strong><br>
+                                <small>{{ item.client.phone|default:"Telefon yo‘q" }}</small>
+                            {% else %}
+                                <strong>{% trans "Noma’lum" %}</strong>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.animal %}
+                                {{ item.animal.get_animal_type_display }}<br>
+                                <small>{{ item.animal.name|default:"Nomsiz" }}</small>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.latitude and item.longitude %}
+                                <a
+                                    href="https://maps.google.com/?q={{ item.latitude }},{{ item.longitude }}"
+                                    target="_blank"
+                                >
+                                    📍 {% trans "Xaritada ko‘rish" %}
+                                </a>
+                            {% elif item.address %}
+                                {{ item.address|truncatechars:35 }}
+                            {% else %}
+                                {% trans "Manzil yo‘q" %}
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.doctor %}
+                                <strong>{{ item.doctor.full_name }}</strong><br>
+                                <small>{{ item.doctor.get_status_display }}</small>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <strong>{{ item.status_label }}</strong>
+                        </td>
+
+                        <td>
+                            {{ item.created_at|date:"d.m.Y H:i" }}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">
+                            {% trans "Tarix ma’lumotlari topilmadi." %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <hr>
+
+    <div class="section-header">
+        <div>
+            <h2>{% trans "Amallar jurnali" %}</h2>
+            <p>{% trans "Status o‘zgarishi, biriktirish va yakunlash harakatlari." %}</p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="dashboard-table">
+            <thead>
+                <tr>
+                    <th>{% trans "Vaqt" %}</th>
+                    <th>{% trans "Foydalanuvchi" %}</th>
+                    <th>{% trans "Harakat" %}</th>
+                    <th>{% trans "Veterinar/Mas’ul" %}</th>
+                    <th>{% trans "Oldingi status" %}</th>
+                    <th>{% trans "Yangi status" %}</th>
+                    <th>{% trans "Izoh" %}</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for log in action_logs %}
+                    <tr>
+                        <td>
+                            {{ log.created_at|date:"d.m.Y H:i" }}
+                        </td>
+
+                        <td>
+                            {% if log.user %}
+                                {{ log.user.username }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <strong>{{ log.get_action_type_display }}</strong>
+                        </td>
+
+                        <td>
+                            {% if log.doctor %}
+                                {{ log.doctor.full_name }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ log.old_status|default:"—" }}
+                        </td>
+
+                        <td>
+                            {{ log.new_status|default:"—" }}
+                        </td>
+
+                        <td>
+                            {{ log.description|default:"—"|truncatechars:80 }}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">
+                            {% trans "Amallar jurnali bo‘sh." %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

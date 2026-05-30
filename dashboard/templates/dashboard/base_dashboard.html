@@ -1,0 +1,120 @@
+{% load static i18n %}
+
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'uz' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>
+        {% block title %}
+            {% trans "Administrator dashboard" %}
+        {% endblock %}
+    </title>
+
+    <link rel="stylesheet" href="{% static 'dashboard/css/dashboard.css' %}">
+</head>
+<body>
+
+<div class="dashboard">
+
+    <aside class="sidebar">
+        <div class="logo-box">
+            <div class="logo-icon">🐾</div>
+            <div>
+                <h2>VetClinic</h2>
+                <p>{% trans "Administrator paneli" %}</p>
+            </div>
+        </div>
+
+        <nav class="nav-menu">
+            <a href="{% url 'dashboard:home' %}" class="{% if active_page == 'home' %}active{% endif %}">
+                <span>📊</span>
+                {% trans "Bosh sahifa" %}
+            </a>
+
+            <a href="{% url 'dashboard:quick_request' %}" class="{% if active_page == 'quick_request' %}active{% endif %}">
+                <span>⚡</span>
+                {% trans "Tezkor ariza" %}
+            </a>
+
+            <a href="{% url 'dashboard:clinic_requests' %}" class="{% if active_page == 'clinic' %}active{% endif %}">
+                <span>🏥</span>
+                {% trans "Klinikada davolash" %}
+            </a>
+
+            <a href="{% url 'dashboard:vet_call_requests' %}" class="{% if active_page == 'vet_call' %}active{% endif %}">
+                <span>🚑</span>
+                {% trans "Veterinar chaqirish" %}
+            </a>
+
+            <a href="{% url 'dashboard:danger_reports' %}" class="{% if active_page == 'danger' %}active danger-active{% endif %}">
+                <span>⚠️</span>
+                {% trans "Xavfli holatlar" %}
+            </a>
+
+            <a href="{% url 'dashboard:history' %}" class="{% if active_page == 'history' %}active{% endif %}">
+                <span>🕘</span>
+                {% trans "Harakatlar tarixi" %}
+            </a>
+
+            <a href="{% url 'dashboard:settings' %}" class="{% if active_page == 'settings' %}active{% endif %}">
+                <span>⚙️</span>
+                {% trans "Sozlamalar" %}
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main-area">
+
+        <header class="top-header">
+            <form method="get" class="search-box">
+                <input
+                    type="text"
+                    name="q"
+                    value="{{ query }}"
+                    placeholder="{% trans 'Qidirish: ism, telefon, hayvon, manzil...' %}"
+                >
+                <button type="submit">
+                    {% trans "Qidirish" %}
+                </button>
+            </form>
+
+            <div class="header-actions">
+
+                <div class="language">
+                    <button type="button">
+                        {% trans "Til" %}: {% trans "O‘zbekcha" %} ▾
+                    </button>
+
+                    <div class="language-menu">
+                        <a href="#">O‘zbekcha</a>
+                        <a href="#">Русский</a>
+                        <a href="#">English</a>
+                    </div>
+                </div>
+
+                <div class="user-box">
+                    <div class="user-avatar">
+                        {{ request.user.username|first|upper|default:"A" }}
+                    </div>
+
+                    <div>
+                        <strong>{{ request.user.username }}</strong>
+                        <p>{% trans "Administrator" %}</p>
+                    </div>
+                </div>
+
+            </div>
+        </header>
+
+        <section class="page-content">
+            {% block content %}{% endblock %}
+        </section>
+
+    </main>
+
+</div>
+
+</body>
+</html>

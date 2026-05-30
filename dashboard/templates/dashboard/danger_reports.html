@@ -1,0 +1,147 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static i18n %}
+
+{% block title %}
+    {% trans "Xavfli holatlar" %}
+{% endblock %}
+
+{% block content %}
+<section class="dashboard-section">
+    <div class="section-header">
+        <div>
+            <h1>{% trans "Xavfli holatlar" %}</h1>
+            <p>{% trans "Tezkor ko‘rib chiqilishi kerak bo‘lgan xavfli murojaatlar." %}</p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="dashboard-table">
+            <thead>
+                <tr>
+                    <th>{% trans "ID" %}</th>
+                    <th>{% trans "Xavf turi" %}</th>
+                    <th>{% trans "Mijoz" %}</th>
+                    <th>{% trans "Manzil" %}</th>
+                    <th>{% trans "Mas’ul" %}</th>
+                    <th>{% trans "Status" %}</th>
+                    <th>{% trans "Vaqt" %}</th>
+                    <th>{% trans "Amal" %}</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in reports %}
+                    <tr>
+                        <td>#{{ item.id }}</td>
+
+                        <td>
+                            <strong>{{ item.get_danger_type_display }}</strong>
+                        </td>
+
+                        <td>
+                            {% if item.client %}
+                                <strong>{{ item.client.full_name|default:"Noma’lum" }}</strong><br>
+                                <small>{{ item.client.phone }}</small>
+                            {% else %}
+                                <strong>{% trans "Noma’lum" %}</strong><br>
+                                <small>{{ item.phone|default:"Telefon yo‘q" }}</small>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ item.address|default:"Manzil yo‘q" }}
+
+                            {% if item.latitude and item.longitude %}
+                                <br>
+                                <a
+                                    href="https://maps.google.com/?q={{ item.latitude }},{{ item.longitude }}"
+                                    target="_blank"
+                                >
+                                    {% trans "Google Maps" %}
+                                </a>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.assigned_doctor %}
+                                <strong>{{ item.assigned_doctor.full_name }}</strong><br>
+                                <small>{{ item.assigned_doctor.get_status_display }}</small>
+                            {% else %}
+                                <span>{% trans "Biriktirilmagan" %}</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <strong>{{ item.get_status_display }}</strong>
+                        </td>
+
+                        <td>
+                            {{ item.created_at|date:"d.m.Y H:i" }}
+                        </td>
+
+                        <td>
+                            <form
+                                method="post"
+                                action="{% url 'dashboard:update_danger_status' item.id %}"
+                                class="inline-form"
+                            >
+                                {% csrf_token %}
+
+                                <select name="doctor_id">
+                                    <option value="">{% trans "Mas’ul tanlash" %}</option>
+                                    {% for doctor in doctors %}
+                                        <option
+                                            value="{{ doctor.id }}"
+                                            {% if item.assigned_doctor and item.assigned_doctor.id == doctor.id %}selected{% endif %}
+                                        >
+                                            {{ doctor.full_name }} — {{ doctor.get_status_display }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+
+                                <input
+                                    type="text"
+                                    name="admin_comment"
+                                    placeholder="{% trans 'Izoh' %}"
+                                    value=""
+                                >
+
+                                <button type="submit" name="action" value="assign">
+                                    {% trans "Biriktirish" %}
+                                </button>
+
+                                <br>
+
+                                <select name="status">
+                                    {% for code, label in status_labels.items %}
+                                        <option
+                                            value="{{ code }}"
+                                            {% if item.status == code %}selected{% endif %}
+                                        >
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+
+                                <button type="submit" name="action" value="status">
+                                    {% trans "Saqlash" %}
+                                </button>
+
+                                <button type="submit" name="action" value="complete">
+                                    {% trans "Yakunlash" %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="8">
+                            {% trans "Xavfli holatlar topilmadi." %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

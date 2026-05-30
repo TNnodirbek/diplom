@@ -1,0 +1,66 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}Tezkor ariza{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1>Tezkor ariza</h1>
+        <p>Telefon orqali murojaat qilgan mijozni administrator tezda ro‘yxatga oladi.</p>
+    </div>
+</div>
+
+<div class="form-panel">
+    <form method="post" class="quick-form">
+        {% csrf_token %}
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Mijoz F.I.Sh</label>
+                <input type="text" name="full_name" placeholder="Masalan: Munisa Karimova">
+            </div>
+
+            <div class="form-group">
+                <label>Telefon raqam</label>
+                <input type="text" name="phone" placeholder="+998 XX XXX XX XX">
+            </div>
+
+            <div class="form-group">
+                <label>Xizmat turi</label>
+                <select name="service_type">
+                    <option value="clinic">Klinikada davolash</option>
+                    <option value="vet_call">Veterinar chaqirish</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Hayvon turi</label>
+                <select name="animal_type">
+                    {% for code, label in animal_type_labels.items %}
+                    <option value="{{ code }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Hayvon ismi</label>
+                <input type="text" name="animal_name" placeholder="Kerak bo‘lmasa bo‘sh qoldiring">
+            </div>
+
+            <div class="form-group">
+                <label>Manzil</label>
+                <input type="text" name="address" placeholder="Veterinar chaqirish bo‘lsa manzil yoziladi">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Muammo / izoh</label>
+            <textarea name="problem_description" rows="4" placeholder="Qisqacha muammo yoki administrator izohi"></textarea>
+        </div>
+
+        <button type="submit" class="primary-btn">Arizani yaratish</button>
+    </form>
+</div>
+
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}Bosh sahifa{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1>Boshqaruv paneli</h1>
+        <p>Botdan va telefon orqali kelgan arizalarni boshqarish oynasi.</p>
+    </div>
+
+    <a href="{% url 'dashboard:quick_request' %}" class="primary-btn">+ Tezkor ariza</a>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <span>🏥</span>
+        <p>Klinikada davolash</p>
+        <h2>{{ total_clinic }}</h2>
+        <small>Bugun: {{ today_clinic }}</small>
+    </div>
+
+    <div class="stat-card">
+        <span>🚑</span>
+        <p>Veterinar chaqirish</p>
+        <h2>{{ total_vet_call }}</h2>
+        <small>Bugun: {{ today_vet_call }}</small>
+    </div>
+
+    <div class="stat-card danger-card">
+        <span>⚠️</span>
+        <p>Xavfli holatlar</p>
+        <h2>{{ total_danger }}</h2>
+        <small>Bugun: {{ today_danger }}</small>
+    </div>
+
+    <div class="stat-card">
+        <span>🔔</span>
+        <p>Yangi murojaatlar</p>
+        <h2>{{ total_new }}</h2>
+        <small>Status: yangi</small>
+    </div>
+</div>
+
+<div class="two-columns">
+    <div class="panel">
+        <div class="panel-title">
+            <h3>So‘nggi xizmat arizalari</h3>
+            <a href="{% url 'dashboard:clinic_requests' %}">Ko‘rish</a>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mijoz</th>
+                        <th>Xizmat</th>
+                        <th>Hayvon</th>
+                        <th>Status</th>
+                        <th>Vaqt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in recent_service_requests %}
+                    <tr>
+                        <td>
+                            <strong>{{ item.client.full_name }}</strong>
+                            <small>{{ item.client.phone }}</small>
+                        </td>
+                        <td>{{ item.get_service_type_display }}</td>
+                        <td>{{ item.animal.get_animal_type_display }}</td>
+                        <td><span class="status status-{{ item.status }}">{{ item.get_status_display }}</span></td>
+                        <td>{{ item.created_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5">Hozircha ariza yo‘q.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel danger-panel">
+        <div class="panel-title">
+            <h3>Xavfli holatlar</h3>
+            <a href="{% url 'dashboard:danger_reports' %}">Ko‘rish</a>
+        </div>
+
+        {% for item in recent_danger_reports %}
+        <div class="danger-item">
+            <div>
+                <strong>{{ item.get_danger_type_display }}</strong>
+                <p>{{ item.address|default:"Manzil kiritilmagan" }}</p>
+                <small>{{ item.created_at|date:"d.m.Y H:i" }}</small>
+            </div>
+            <span class="status status-{{ item.status }}">{{ item.get_status_display }}</span>
+        </div>
+        {% empty %}
+        <p class="empty-text">Xavfli holatlar yo‘q.</p>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}
